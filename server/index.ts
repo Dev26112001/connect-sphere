@@ -1,17 +1,11 @@
-import dotenv from "dotenv";
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
-import { serveStatic } from "./static";
 import { createServer } from "http";
-
-// Load environment variables from .env file
-dotenv.config();
-
-// Debug: Check if DATABASE_URL is loaded
-// console.log("DATABASE_URL:", process.env.DATABASE_URL ? "SET" : "NOT SET");
+import dotenv from "dotenv";
 
 const app = express();
 const httpServer = createServer(app);
+
+dotenv.config();
 
 declare module "http" {
   interface IncomingMessage {
@@ -24,7 +18,7 @@ app.use(
     verify: (req, _res, buf) => {
       req.rawBody = buf;
     },
-  }),
+  })
 );
 
 app.use(express.urlencoded({ extended: false }));
@@ -67,6 +61,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  const { registerRoutes } = await import("./routes");
+  const { serveStatic } = await import("./static");
+
   await registerRoutes(httpServer, app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
