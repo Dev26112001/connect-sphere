@@ -5,15 +5,19 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/use-auth";
 import { Navigation } from "@/components/Navigation";
+import { Footer } from "@/components/Footer";
 import { Loader2 } from "lucide-react";
 
 import Landing from "@/pages/Landing";
+import Login from "@/pages/Login";
+import ForgotPassword from "@/pages/ForgotPassword";
 import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
 import NotFound from "@/pages/not-found";
 
 function Router() {
   const { user, isLoading } = useAuth();
+  const [location] = useLocation();
   
   if (isLoading) {
     return (
@@ -23,25 +27,38 @@ function Router() {
     );
   }
 
-  // If not logged in, show Landing page for root.
-  // Other routes might need protection or specific handling.
-  
+  // Show login page for /login route
+  if (location === "/login") {
+    return <Login />;
+  }
+
   return (
-    <>
+    <div className="min-h-screen flex flex-col">
       <Navigation />
-      <Switch>
-        <Route path="/">
-          {user ? <Home /> : <Landing />}
-        </Route>
-        
-        <Route path="/dashboard">
-          {user ? <Dashboard /> : <Landing />} 
-        </Route>
-        
-        {/* Fallback to 404 */}
-        <Route component={NotFound} />
-      </Switch>
-    </>
+      <main className="flex-1">
+        <Switch>
+          <Route path="/">
+            {user ? <Home /> : <Landing />}
+          </Route>
+          
+          <Route path="/login">
+            <Login />
+          </Route>
+          
+          <Route path="/forgot-password">
+            <ForgotPassword />
+          </Route>
+          
+          <Route path="/dashboard">
+            {user ? <Dashboard /> : <Landing />} 
+          </Route>
+          
+          {/* Fallback to 404 */}
+          <Route component={NotFound} />
+        </Switch>
+      </main>
+      <Footer />
+    </div>
   );
 }
 

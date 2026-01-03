@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
 import { api } from "@shared/routes";
+import { setupAuth, isAuthenticated, registerAuthRoutes } from "./replit_integrations/auth";
+import { forgotPassword, resetPassword } from "./replit_integrations/auth/passwordReset";
+import { storage } from "./storage";
 import { z } from "zod";
 
 export async function registerRoutes(
@@ -15,7 +16,11 @@ export async function registerRoutes(
 
   // Intentions
   app.get(api.intentions.list.path, isAuthenticated, async (req, res) => {
-    const items = await storage.getIntentions();
+    const { search, category } = req.query;
+    const items = await storage.getIntentions({
+      search: search as string,
+      category: category as string
+    });
     res.json(items);
   });
 
@@ -30,14 +35,14 @@ export async function registerRoutes(
       const input = api.intentions.create.input.parse(req.body);
       const intention = await storage.createIntention({
         ...input,
-        creatorId: req.user.claims.sub,
+        creatorId: req.user.id,
       });
       res.status(201).json(intention);
     } catch (err) {
       if (err instanceof z.ZodError) {
         return res.status(400).json({ message: err.errors[0].message });
       }
-      throw err;
+      res.status(400).json({ message: "Invalid request" });
     }
   });
 
@@ -48,8 +53,7 @@ export async function registerRoutes(
       const connection = await storage.createConnection({
         intentionId,
         message,
-        requesterId: req.user.claims.sub,
-        status: "pending"
+        requesterId: req.user.id
       });
       res.status(201).json(connection);
     } catch (err) {
@@ -58,24 +62,32 @@ export async function registerRoutes(
   });
 
   app.get(api.connections.list.path, isAuthenticated, async (req: any, res) => {
-    const connections = await storage.getConnectionsForUser(req.user.claims.sub);
+    const connections = await storage.getConnectionsForUser(req.user.id);
     res.json(connections);
   });
 
   app.patch(api.connections.updateStatus.path, isAuthenticated, async (req: any, res) => {
     const connectionId = Number(req.params.id);
     const { status } = req.body;
-    
+
     // Verify ownership (simplified: only check if connection exists for now, 
     // ideally check if req.user owns the intention associated with this connection)
     const connection = await storage.getConnection(connectionId);
-    if (!connection) return res.status(404).json({ message: "Connection not found" });
-    
-    // In a real app, verify that req.user.claims.sub is the creator of connection.intention
-    
-    const updated = await storage.updateConnectionStatus(connectionId, status);
-    res.json(updated);
+    if (!connection) {
+      return res.status(404).json({ message: "Connection not found" });
+    }
+
+    try {
+      const updatedConnection = await storage.updateConnectionStatus(connectionId, status);
+      res.json(updatedConnection);
+    } catch (err) {
+      res.status(400).json({ message: "Failed to update connection status" });
+    }
   });
+
+  // Password reset routes
+  app.post("/api/forgot-password", forgotPassword);
+  app.post("/api/reset-password", resetPassword);
 
   return httpServer;
 }

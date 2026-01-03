@@ -18,7 +18,14 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 
 interface IntentionCardProps {
-  intention: Intention & { creator?: { firstName: string; lastName: string; profileImageUrl: string; id: string } };
+  intention: Intention & { 
+    creator?: { 
+      firstName: string | null; 
+      lastName: string | null; 
+      profileImageUrl: string | null; 
+      id: string 
+    } 
+  };
 }
 
 export function IntentionCard({ intention }: IntentionCardProps) {
@@ -38,7 +45,7 @@ export function IntentionCard({ intention }: IntentionCardProps) {
     });
   };
 
-  const getInitials = (first?: string, last?: string) => {
+  const getInitials = (first?: string | null, last?: string | null) => {
     return `${first?.[0] || ""}${last?.[0] || ""}`.toUpperCase() || "??";
   };
 
@@ -51,7 +58,7 @@ export function IntentionCard({ intention }: IntentionCardProps) {
       <div className="flex justify-between items-start mb-4">
         <div className="flex items-center gap-3">
           <Avatar className="h-10 w-10 border border-border">
-            <AvatarImage src={intention.creator?.profileImageUrl} />
+            <AvatarImage src={intention.creator?.profileImageUrl || undefined} />
             <AvatarFallback className="bg-secondary/10 text-secondary">{getInitials(intention.creator?.firstName, intention.creator?.lastName)}</AvatarFallback>
           </Avatar>
           <div>

@@ -1,7 +1,14 @@
+import dotenv from "dotenv";
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+
+// Load environment variables from .env file
+dotenv.config();
+
+// Debug: Check if DATABASE_URL is loaded
+// console.log("DATABASE_URL:", process.env.DATABASE_URL ? "SET" : "NOT SET");
 
 const app = express();
 const httpServer = createServer(app);
@@ -89,10 +96,10 @@ app.use((req, res, next) => {
     {
       port,
       host: "0.0.0.0",
-      reusePort: true,
+      reusePort: process.platform !== "win32",
     },
     () => {
-      log(`serving on port ${port}`);
-    },
+      console.log(` Server running on port ${port}`);
+    }
   );
 })();

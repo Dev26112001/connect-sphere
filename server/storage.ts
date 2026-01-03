@@ -1,26 +1,26 @@
 import { db } from "./db";
-import { 
+import {
   intentions, connections, users,
-  type Intention, type InsertIntention, 
+  type Intention, type InsertIntention,
   type Connection, type InsertConnection,
   type User
 } from "@shared/schema";
-import { eq, desc, and, or } from "drizzle-orm";
+import { eq, desc, and, or, ilike, like } from "drizzle-orm";
 import { authStorage, type IAuthStorage } from "./replit_integrations/auth/storage";
 
 export interface IStorage extends IAuthStorage {
-  // Intentions
+  getUser(id: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
+  getUsers(): Promise<User[]>;
   createIntention(intention: InsertIntention & { creatorId: string }): Promise<Intention>;
-  getIntentions(): Promise<(Intention & { creator: User | null })[]>;
   getIntention(id: number): Promise<Intention | undefined>;
-  
-  // Connections
+  getIntentions(filters?: { search?: string; category?: string }): Promise<(Intention & { creator: User | null })[]>;
   createConnection(connection: InsertConnection & { requesterId: string, intentionId: number }): Promise<Connection>;
-  getConnectionsForUser(userId: string): Promise<{ 
-    sent: (Connection & { intention: Intention | null })[], 
-    received: (Connection & { intention: Intention | null, requester: User | null })[] 
-  }>;
   getConnection(id: number): Promise<Connection | undefined>;
+  getConnectionsForUser(userId: string): Promise<{
+    sent: (Connection & { intention: Intention | null })[],
+    received: (Connection & { intention: Intention | null, requester: User | null })[]
+  }>;
   updateConnectionStatus(id: number, status: "accepted" | "rejected"): Promise<Connection>;
 }
 
@@ -29,6 +29,15 @@ export class DatabaseStorage implements IStorage {
   getUser(id: string) {
     return authStorage.getUser(id);
   }
+
+  getUserByEmail(email: string) {
+    return authStorage.getUserByEmail(email);
+  }
+
+  getUsers() {
+    return authStorage.getUsers();
+  }
+
   upsertUser(user: any) {
     return authStorage.upsertUser(user);
   }
@@ -39,8 +48,24 @@ export class DatabaseStorage implements IStorage {
     return newIntention;
   }
 
-  async getIntentions(): Promise<(Intention & { creator: User | null })[]> {
+  async getIntentions(filters?: { search?: string; category?: string }): Promise<(Intention & { creator: User | null })[]> {
+    let whereConditions = [];
+
+    if (filters?.category && filters.category !== "all") {
+      whereConditions.push(eq(intentions.category, filters.category));
+    }
+
+    if (filters?.search) {
+      whereConditions.push(
+        or(
+          ilike(intentions.title, `%${filters.search}%`),
+          ilike(intentions.description, `%${filters.search}%`)
+        )
+      );
+    }
+
     return await db.query.intentions.findMany({
+      where: whereConditions.length > 0 ? and(...whereConditions) : undefined,
       orderBy: [desc(intentions.createdAt)],
       with: {
         creator: true,
@@ -60,9 +85,9 @@ export class DatabaseStorage implements IStorage {
     return newConnection;
   }
 
-  async getConnectionsForUser(userId: string): Promise<{ 
-    sent: (Connection & { intention: Intention | null })[], 
-    received: (Connection & { intention: Intention | null, requester: User | null })[] 
+  async getConnectionsForUser(userId: string): Promise<{
+    sent: (Connection & { intention: Intention | null })[],
+    received: (Connection & { intention: Intention | null, requester: User | null })[]
   }> {
     const sent = await db.query.connections.findMany({
       where: eq(connections.requesterId, userId),
@@ -77,7 +102,7 @@ export class DatabaseStorage implements IStorage {
     const intentionIds = userIntentions.map(i => i.id);
 
     let received: (Connection & { intention: Intention | null, requester: User | null })[] = [];
-    
+
     if (intentionIds.length > 0) {
       received = await db.query.connections.findMany({
         where: (connection, { inArray }) => inArray(connection.intentionId, intentionIds),
